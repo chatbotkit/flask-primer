@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Flask ChatBotKit Primer</title>
+  </head>
+  <body>
+      <script type="text/javascript">
+        let conversationId, token
+
+        function handleError(err) {
+          console.error(err)
+        }
+
+        function addMessage({ text, type }) {
+          const messageEmoji = document.createElement('div')
+
+          messageEmoji.innerText = { user: '🧠', bot: '🤖' }[type]
+
+          const messageText = document.createElement('div')
+
+          messageText.innerText = text.trim()
+
+          const message = document.createElement('div')
+
+          message.appendChild(messageEmoji)
+          message.appendChild(messageText)
+
+          document.querySelector('#messages').appendChild(message)
+        }
+
+        async function continueConversation(event, cid=conversationId, tkn=token) {
+          const text= event.target.value
+
+          event.target.value = ''
+
+          // Sub-step A: send the user message to the conversation instance
+
+          const response01 = await fetch(`https://api.chatbotkit.com/v1/conversation/${cid}/send`, {
+            method: 'POST',
+
+            headers: {
+                'Authorization': `Bearer ${tkn}`,
+                'Content-Type': 'application/json'
+            },
+
+            body: JSON.stringify({
+              text
+            })
+          })
+
+          if (!response01.ok) {
+            handleError(await response01.json())
+
+            return
+          }
+
+          const { id: sendMessageId } = await response01.json()
+
+          addMessage({ id: sendMessageId, text, type: 'user' })
+
+          // Sub-step B: receive a message from the conversation instance
+
+          const response02= await fetch(`https://api.chatbotkit.com/v1/conversation/${cid}/receive`, {
+            method: 'POST',
+
+            headers: {
+                'Authorization': `Bearer ${tkn}`,
+                'Content-Type': 'application/json'
+            },
+
+            body: JSON.stringify({})
+          })
+
+          if (!response02.ok) {
+            handleError(await response02.json())
+
+            return
+          }
+
+          const { id: receiveMessageId, text: receiveText } = await response02.json()
+
+          addMessage({ id: receiveMessageId, text: receiveText, type: 'bot' })
+        }
+
+        async function startConversation(event) {
+          const response = await fetch('/create')
+
+          if (!response.ok) {
+            handleError(await response.json())
+
+            return
+          }
+
+          ;({ conversationId, token } = await response.json())
+
+          continueConversation(event, conversationId, token)
+        }
+
+        function handleOnKeyDown(event) {
+          if (event.keyCode === 13) {
+            event.preventDefault()
+
+            if (conversationId) {
+              continueConversation(event)
+            } else {
+              startConversation(event)
+            }
+          }
+        }
+      </script>
+      <div id="messages"></div>
+      <textarea style="width:500px;height:50px" onkeydown="handleOnKeyDown(event)" placeholder="Say something..."></textarea>
+  </body>
+</html>
